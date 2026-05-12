@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+<div class="layout">
+    <aside class="layout__sidebar">
+        <div class="sidebar__brand">
+            <span class="sidebar__logo">✦</span>
+            <span class="sidebar__title">GenUI Demo</span>
+        </div>
+
+        <nav class="sidebar__nav">
+            <a class="sidebar__link sidebar__link--active" href="/">
+                💬 Chat
+            </a>
+        </nav>
+
+        <div class="sidebar__footer">
+            <p class="sidebar__meta">Blazor + AG-UI + LangGraph</p>
+            <p class="sidebar__meta">Controlled Generative UI</p>
+        </div>
+    </aside>
+
+    <main class="layout__main">
+        @Body
+    </main>
+</div>

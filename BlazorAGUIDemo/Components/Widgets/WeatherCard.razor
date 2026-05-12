@@ -1,0 +1,32 @@
+@* Controlled GenUI component — rendered by the agent via show_weather tool call *@
+@namespace BlazorAGUIDemo.Components.Widgets
+
+<div class="weather-card">
+    <div class="weather-card__header">
+        <span class="weather-card__emoji">@Params.ConditionEmoji</span>
+        <span class="weather-card__location">@Params.Location</span>
+    </div>
+
+    <div class="weather-card__temp">
+        @Params.Temperature.ToString("0")°<span class="weather-card__unit">C</span>
+    </div>
+
+    <div class="weather-card__condition">@Params.Condition</div>
+
+    <div class="weather-card__stats">
+        <div class="weather-card__stat">
+            <span class="weather-card__stat-icon">💧</span>
+            <span class="weather-card__stat-label">Humidity</span>
+            <span class="weather-card__stat-value">@Params.Humidity%</span>
+        </div>
+        <div class="weather-card__stat">
+            <span class="weather-card__stat-icon">💨</span>
+            <span class="weather-card__stat-label">Wind</span>
+            <span class="weather-card__stat-value">@Params.WindSpeed.ToString("0") km/h</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public WeatherCardParameters Params { get; set; } = new();
+}

@@ -1,0 +1,52 @@
+@* Text input bar at the bottom of the chat pane. *@
+@namespace BlazorAGUIDemo.Components.GenUI
+
+<div class="chat-input">
+    <textarea class="chat-input__field"
+              placeholder="@(IsDisabled ? "Agent is thinking…" : "Ask me about weather or flights…")"
+              rows="1"
+              disabled="@IsDisabled"
+              @bind="inputText"
+              @bind:event="oninput"
+              @onkeydown="HandleKeyDown" />
+
+    <button class="chat-input__send @(IsDisabled ? "chat-input__send--disabled" : "")"
+            disabled="@(IsDisabled || string.IsNullOrWhiteSpace(inputText))"
+            @onclick="Submit">
+        @if (IsDisabled)
+        {
+            <span class="chat-input__spinner"></span>
+        }
+        else
+        {
+            <span>▶</span>
+        }
+    </button>
+</div>
+
+@code {
+    [Parameter] public EventCallback<string> OnSubmit  { get; set; }
+    [Parameter] public bool                  IsDisabled { get; set; }
+
+    private string inputText = string.Empty;
+
+    public void SetText(string text)
+    {
+        inputText = text;
+        StateHasChanged();
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(inputText) || IsDisabled) return;
+        var msg = inputText.Trim();
+        inputText = string.Empty;
+        await OnSubmit.InvokeAsync(msg);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            await Submit();
+    }
+}

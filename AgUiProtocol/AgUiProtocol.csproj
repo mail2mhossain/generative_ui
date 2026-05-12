@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgUiProtocol</RootNamespace>
+    <!--
+      FrameworkReference gives access to Microsoft.AspNetCore.Components (ComponentBase)
+      and Microsoft.Extensions.Logging (ILogger) without making this project a web app.
+      Any non-Blazor host can still reference this library — those types are pulled in only
+      when the consuming project itself targets the ASP.NET Core shared framework.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

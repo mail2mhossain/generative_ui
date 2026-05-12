@@ -1,0 +1,42 @@
+@* Controlled GenUI component — rendered by the agent via show_flight_options tool call *@
+@namespace BlazorAGUIDemo.Components.Widgets
+
+<div class="flights-card">
+    <div class="flights-card__header">
+        <span class="flights-card__route">✈️ @Params.Origin → @Params.Destination</span>
+        <span class="flights-card__date">@Params.Date</span>
+    </div>
+
+    <div class="flights-card__list">
+        @foreach (var flight in Params.Flights)
+        {
+            <div class="flight-row">
+                <div class="flight-row__airline">
+                    <span class="flight-row__badge">@flight.AirlineInitial</span>
+                    <div>
+                        <div class="flight-row__airline-name">@flight.Airline</div>
+                        <div class="flight-row__number">@flight.FlightNumber</div>
+                    </div>
+                </div>
+
+                <div class="flight-row__times">
+                    <span class="flight-row__depart">@flight.DepartureTime</span>
+                    <span class="flight-row__arrow">──────▶</span>
+                    <span class="flight-row__arrive">@flight.ArrivalTime</span>
+                </div>
+
+                <div class="flight-row__meta">
+                    <span class="flight-row__duration">⏱ @flight.Duration</span>
+                </div>
+
+                <div class="flight-row__price">£@flight.PriceGbp.ToString("0")</div>
+            </div>
+        }
+    </div>
+
+    <p class="flights-card__note">Prices shown are indicative demo values.</p>
+</div>
+
+@code {
+    [Parameter] public FlightOptionsParameters Params { get; set; } = new();
+}

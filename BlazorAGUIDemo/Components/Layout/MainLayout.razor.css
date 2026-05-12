@@ -1,0 +1,69 @@
+/* scoped styles for MainLayout */
+.layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.layout__sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 1rem;
+    gap: 2rem;
+}
+
+.layout__main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar__brand {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.sidebar__logo {
+    font-size: 1.4rem;
+    color: var(--accent);
+}
+
+.sidebar__nav {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+
+.sidebar__link {
+    display: block;
+    padding: .5rem .75rem;
+    border-radius: .5rem;
+    color: var(--sidebar-text-muted);
+    text-decoration: none;
+    transition: background .15s;
+}
+
+.sidebar__link:hover,
+.sidebar__link--active {
+    background: rgba(255,255,255,.1);
+    color: #fff;
+}
+
+.sidebar__footer {
+    margin-top: auto;
+}
+
+.sidebar__meta {
+    font-size: .72rem;
+    color: var(--sidebar-text-muted);
+    margin: 0;
+    line-height: 1.6;
+}

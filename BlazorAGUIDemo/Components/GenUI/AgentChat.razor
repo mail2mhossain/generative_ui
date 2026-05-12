@@ -1,0 +1,265 @@
+@*
+    AgentChat.razor — Core of the Generative UI demo.
+
+    Implements the AG-UI event loop described in "The Architectural Rupture":
+      • Streaming text rendered token-by-token
+      • CLS management: skeleton placeholder reserves space before component arrives
+      • Late-bound tool call handling: in-progress text is finalised before component renders
+      • Component hydration via PendingComponentModel + DynamicComponent
+      • Suggested action chips derived from ComponentRegistry (capability discovery)
+*@
+
+@namespace BlazorAGUIDemo.Components.GenUI
+@using BlazorAGUIDemo.Components.Widgets
+@using BlazorAGUIDemo.Services
+@inject AgUiStreamService AgUiStream
+@inject ComponentRegistry Registry
+@implements IDisposable
+
+<div class="agent-chat">
+
+    @* ------------------------------------------------------------------ *@
+    @* Suggestion chips — capability discovery (Section 2)                 *@
+    @* ------------------------------------------------------------------ *@
+    @if (messages.Count == 0 && !isRunning)
+    {
+        <div class="agent-chat__suggestions">
+            <p class="agent-chat__suggestions-label">Try one of these:</p>
+            <div class="agent-chat__chips">
+                @foreach (var reg in Registry.GetAll())
+                {
+                    <button class="chip" @onclick="() => chatInput!.SetText(reg.SuggestedPrompt)">
+                        @reg.SuggestedPrompt
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @* ------------------------------------------------------------------ *@
+    @* Message history                                                      *@
+    @* ------------------------------------------------------------------ *@
+    <div class="agent-chat__messages">
+
+        @foreach (var msg in messages)
+        {
+            @if (msg.IsComponent && msg.Component is not null)
+            {
+                <div class="agent-chat__component-slot">
+                    <ErrorBoundary>
+                        <ChildContent>
+                            <DynamicComponent Type="@msg.Component.ComponentType"
+                                              Parameters="@msg.Component.Parameters" />
+                        </ChildContent>
+                        <ErrorContent Context="ex">
+                            <div class="agent-chat__error">
+                                ⚠ Component render error (@msg.Component.ComponentType.Name): @ex.Message
+                            </div>
+                        </ErrorContent>
+                    </ErrorBoundary>
+                </div>
+            }
+            else
+            {
+                <ChatMessage Content="@msg.Content"
+                             IsUser="@msg.IsUser"
+                             IsError="@msg.IsError" />
+            }
+        }
+
+        @* In-progress streaming text *@
+        @if (streamingText.Length > 0)
+        {
+            <ChatMessage Content="@streamingText.ToString()" IsStreaming="true" />
+        }
+
+        @* Skeleton placeholder — reserves layout space while component loads *@
+        @* (Strategy 3 from Section 3: skeleton prevents Cumulative Layout Shift) *@
+        @if (currentComponent is not null && !currentComponent.IsReady)
+        {
+            <div class="agent-chat__skeleton" style="min-height: @(currentComponent.ExpectedHeight)px">
+                <div class="skeleton-bar skeleton-bar--wide"></div>
+                <div class="skeleton-bar skeleton-bar--medium"></div>
+                <div class="skeleton-bar skeleton-bar--narrow"></div>
+            </div>
+        }
+
+        <div @ref="scrollBottom"></div>
+    </div>
+
+    @* ------------------------------------------------------------------ *@
+    @* Input bar                                                            *@
+    @* ------------------------------------------------------------------ *@
+    <div class="agent-chat__footer">
+        @if (lastError is not null)
+        {
+            <div class="agent-chat__error">⚠ @lastError</div>
+        }
+        <ChatInput @ref="chatInput" OnSubmit="HandleSubmit" IsDisabled="@isRunning" />
+    </div>
+</div>
+
+@code {
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+
+    private readonly List<ChatMessageModel>  messages      = new();
+    private readonly System.Text.StringBuilder streamingText = new();
+
+    private PendingComponentModel? currentComponent;
+    private bool                   isRunning;
+    private string?                lastError;
+    private CancellationTokenSource? _cts;
+
+    private ChatInput?        chatInput;
+    private ElementReference  scrollBottom;
+
+    // -----------------------------------------------------------------------
+    // Submit handler
+    // -----------------------------------------------------------------------
+
+    private async Task HandleSubmit(string userMessage)
+    {
+        lastError = null;
+        messages.Add(ChatMessageModel.Text(userMessage, isUser: true));
+        isRunning = true;
+        streamingText.Clear();
+        currentComponent = null;
+        _cts = new CancellationTokenSource();
+
+        StateHasChanged();
+        await ScrollToBottomAsync();
+
+        try
+        {
+            await foreach (var evt in AgUiStream.StreamRunAsync(userMessage, ct: _cts.Token))
+            {
+                HandleAgUiEvent(evt);
+                StateHasChanged();
+                await ScrollToBottomAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // User cancelled — clean up in-progress text
+        }
+        catch (Exception ex)
+        {
+            lastError = $"Could not reach agent: {ex.Message}";
+            messages.Add(ChatMessageModel.Text(lastError, isError: true));
+        }
+        finally
+        {
+            isRunning = false;
+
+            // Finalise any trailing streamed text that never received TEXT_MESSAGE_END
+            if (streamingText.Length > 0)
+            {
+                messages.Add(ChatMessageModel.Text(streamingText.ToString()));
+                streamingText.Clear();
+            }
+
+            // If a component was streaming but never hydrated, discard it
+            currentComponent = null;
+
+            StateHasChanged();
+            await ScrollToBottomAsync();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // AG-UI event dispatcher — implements the contract from Section 3
+    // -----------------------------------------------------------------------
+
+    private void HandleAgUiEvent(AgUiEvent evt)
+    {
+        switch (evt.EventType)
+        {
+            case AgUiEventType.RunStarted:
+                isRunning = true;
+                break;
+
+            // Text streaming — append token to the live buffer
+            case AgUiEventType.TextMessageContent:
+                if (evt.Delta is not null)
+                    streamingText.Append(evt.Delta);
+                break;
+
+            // Text segment complete — commit to message history
+            case AgUiEventType.TextMessageEnd:
+                if (streamingText.Length > 0)
+                {
+                    messages.Add(ChatMessageModel.Text(streamingText.ToString()));
+                    streamingText.Clear();
+                }
+                break;
+
+            // Component inbound — AG-UI contract: close any in-progress text first,
+            // then show a skeleton so layout space is reserved (prevents CLS).
+            case AgUiEventType.ToolCallStart:
+                if (streamingText.Length > 0)
+                {
+                    messages.Add(ChatMessageModel.Text(streamingText.ToString()));
+                    streamingText.Clear();
+                }
+                var toolName = evt.ToolCallName ?? string.Empty;
+                var reg = Registry.GetRegistration(toolName);
+                if (reg is not null)
+                    currentComponent = new PendingComponentModel { Registration = reg };
+                else
+                    JS.InvokeVoidAsync("console.warn",
+                        $"[AG-UI] No component registered for tool '{toolName}'. " +
+                        "Check ToolNames.cs and Program.cs are in sync with tool_names.py.");
+                break;
+
+            // delta is a JSON string — parse to JsonElement and hand to PendingComponentModel
+            case AgUiEventType.ToolCallArgs:
+                if (evt.Delta is not null && currentComponent is not null)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(evt.Delta);
+                    currentComponent.SetArgs(doc.RootElement.Clone());
+                }
+                break;
+
+            // Deserialise args and promote the component to the message history
+            case AgUiEventType.ToolCallEnd:
+                if (currentComponent is not null)
+                {
+                    currentComponent.Hydrate();
+                    if (currentComponent.IsReady)
+                        messages.Add(ChatMessageModel.FromComponent(currentComponent));
+                    currentComponent = null;
+                }
+                break;
+
+            case AgUiEventType.RunFinished:
+                isRunning = false;
+                break;
+
+            case AgUiEventType.RunError:
+                isRunning = false;
+                lastError = evt.Error;
+                if (evt.Error is not null)
+                    messages.Add(ChatMessageModel.Text(evt.Error, isError: true));
+                break;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-scroll
+    // -----------------------------------------------------------------------
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private async Task ScrollToBottomAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollToElement", scrollBottom);
+        }
+        catch { /* JS interop not critical */ }
+    }
+
+    public void Dispose() => _cts?.Cancel();
+}

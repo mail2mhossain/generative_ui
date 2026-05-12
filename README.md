@@ -1,0 +1,220 @@
+# Generative UI Demo — Blazor + AG-UI + LangGraph
+
+A working end-to-end demo of **Controlled Generative UI**: a LangGraph agent (Python) decides which UI component to show, and a Blazor frontend (C#) renders it — connected by the AG-UI protocol over Server-Sent Events.
+
+The agent can render two components on demand:
+- **WeatherCard** — shows current conditions for any city
+- **FlightOptions** — shows a list of flights between two cities
+
+---
+
+## Project structure
+
+```
+demo/
+├── agent/               Python — LangGraph agent backend
+│   ├── main.py
+│   ├── requirements.txt
+│   └── .env.example
+│
+└── BlazorAGUIDemo/      C# — ASP.NET Blazor Server frontend
+    ├── BlazorAGUIDemo.csproj
+    ├── appsettings.json
+    ├── Program.cs
+    ├── Services/
+    │   ├── AgUiModels.cs          AG-UI event types and chat models
+    │   ├── ComponentRegistry.cs   Maps tool names → Blazor components
+    │   └── AgUiStreamService.cs   SSE stream consumer
+    ├── Components/
+    │   ├── GenUI/
+    │   │   ├── AgentChat.razor    Core AG-UI event loop
+    │   │   ├── ChatMessage.razor  Message bubble
+    │   │   └── ChatInput.razor    Input bar
+    │   └── Widgets/
+    │       ├── WeatherCard.razor       Weather display component
+    │       └── FlightOptions.razor     Flight list component
+    └── wwwroot/
+        └── app.css
+```
+
+---
+
+## Prerequisites
+
+| Tool | Minimum version | Download |
+|---|---|---|
+| Python | 3.11 | https://python.org |
+| .NET SDK | 8.0 | https://dotnet.microsoft.com/download |
+| Anthropic API key | — | https://console.anthropic.com |
+
+---
+
+## 1. Agent — `demo/agent`
+
+**Project name:** `agent` (no package name — run directly with `uvicorn`)
+
+### Dependencies (`requirements.txt`)
+
+| Package | Purpose |
+|---|---|
+| `fastapi` | HTTP server and SSE endpoint |
+| `uvicorn[standard]` | ASGI server to run FastAPI |
+| `python-dotenv` | Loads `ANTHROPIC_API_KEY` from `.env` |
+| `langchain-anthropic` | LangChain adapter for Claude (Anthropic) |
+| `langgraph` | Stateful agent orchestration and tool calling |
+
+### Setup
+
+```bash
+cd demo/agent
+
+# 1. Create a virtual environment (recommended)
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Set your Anthropic API key
+copy .env.example .env          # Windows
+# cp .env.example .env          # macOS / Linux
+# Then open .env and paste your key:
+#   ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Run
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+The agent will be available at `http://localhost:8000`.
+Verify it is running: open `http://localhost:8000/health` — you should see `{"status":"ok"}`.
+
+---
+
+## 2. Blazor frontend — `demo/BlazorAGUIDemo`
+
+**Project name:** `BlazorAGUIDemo`  
+**Target framework:** .NET 8 (`net8.0`)
+
+### Dependencies
+
+All dependencies come from the .NET 8 SDK — no NuGet packages need to be added manually. The project uses only framework-included libraries:
+
+| Library | Source |
+|---|---|
+| `Microsoft.AspNetCore.Components` | Included in .NET 8 SDK |
+| `System.Net.Http` | Included in .NET 8 SDK |
+| `System.Text.Json` | Included in .NET 8 SDK |
+
+### Setup
+
+```bash
+cd demo/BlazorAGUIDemo
+
+# Restore (happens automatically on run, but you can do it explicitly)
+dotnet restore
+```
+
+No environment variables are needed on the Blazor side.
+The agent URL is configured in `appsettings.json`:
+
+```json
+{
+  "AgentUrl": "http://localhost:8000"
+}
+```
+
+Change this value if your agent is running on a different host or port.
+
+### Run
+
+```bash
+dotnet run
+```
+
+The app opens at:
+- `https://localhost:7001` (HTTPS)
+- `http://localhost:5001` (HTTP)
+
+---
+
+## Running both together
+
+Open **two terminals** side by side.
+
+**Terminal 1 — start the agent first:**
+
+```bash
+cd demo/agent
+.venv\Scripts\activate
+uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — start the Blazor frontend:**
+
+```bash
+cd demo/BlazorAGUIDemo
+dotnet run
+```
+
+Open `https://localhost:7001` in your browser.
+
+---
+
+## Using the demo
+
+The chat interface shows two **suggestion chips** when it first loads — one for each registered component. Click a chip to pre-fill the input, or type your own message:
+
+| What you type | What the agent renders |
+|---|---|
+| "What's the weather in Tokyo?" | **WeatherCard** with temperature, condition, humidity, wind |
+| "Show me flights from London to New York" | **FlightOptions** with airline, times, and prices |
+
+The agent streams its text response token-by-token while deciding which component to show. A skeleton placeholder holds the layout space until the component is fully hydrated (preventing Cumulative Layout Shift).
+
+---
+
+## How it works
+
+```
+User types a message
+        │
+        ▼
+Blazor POSTs to /api/agent/run
+        │
+        ▼
+LangGraph runs Claude, decides to call show_weather or show_flight_options
+        │
+        ▼
+Agent emits AG-UI events over SSE:
+  RUN_STARTED
+  TEXT_MESSAGE_CONTENT  (streamed tokens)
+  UI_TOOL_CALL_START    (skeleton appears in Blazor)
+  UI_TOOL_CALL_ARGS     (component parameters)
+  UI_TOOL_CALL_END      (component hydrates and renders)
+  RUN_FINISHED
+        │
+        ▼
+Blazor ComponentRegistry looks up the tool name,
+deserialises the args, and renders the Blazor component
+via DynamicComponent
+```
+
+---
+
+## Troubleshooting
+
+**"Could not reach agent"** in the chat UI  
+→ The Python agent is not running. Start `uvicorn main:app --reload --port 8000` first.
+
+**HTTPS certificate warning in browser**  
+→ Run `dotnet dev-certs https --trust` once to trust the local development certificate.
+
+**`ANTHROPIC_API_KEY` not found error from the agent**  
+→ Make sure `.env` exists in `demo/agent/` and contains your key. The `.env.example` file shows the expected format.
+
+**Agent responds but no component appears**  
+→ Check the browser console and the uvicorn terminal for errors. The most common cause is a JSON schema mismatch between the tool parameters the LLM returned and what the C# model expects.

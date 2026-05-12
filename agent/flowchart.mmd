@@ -1,0 +1,12 @@
+flowchart TD
+    A[Blazor Frontend\nPOST /api/agent/run] --> B[FastAPI Endpoint\nrun_agent]
+    B --> C[_ag_ui_stream\nAsync Generator]
+    C --> D[LangGraph ReAct Agent\ncreate_react_agent]
+    D --> E[Claude claude-haiku-4-5\nvia langchain-anthropic]
+    E -->|tool decision| F{Tool Name}
+    F -->|show_weather| G[show_weather tool]
+    F -->|show_flight_options| H[show_flight_options tool]
+    C -->|SSE events| A
+
+    style G fill:#f0f4ff
+    style H fill:#f0f4ff

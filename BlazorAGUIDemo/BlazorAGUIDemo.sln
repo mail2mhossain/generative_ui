@@ -1,0 +1,31 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36804.6 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorAGUIDemo", "BlazorAGUIDemo.csproj", "{428A669B-8381-29E6-C345-5BDD65664020}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgUiProtocol", "..\AgUiProtocol\AgUiProtocol.csproj", "{B7C1D2E3-F4A5-6B78-9C0D-E1F2A3B4C5D6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{428A669B-8381-29E6-C345-5BDD65664020}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{428A669B-8381-29E6-C345-5BDD65664020}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{428A669B-8381-29E6-C345-5BDD65664020}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{428A669B-8381-29E6-C345-5BDD65664020}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7C1D2E3-F4A5-6B78-9C0D-E1F2A3B4C5D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7C1D2E3-F4A5-6B78-9C0D-E1F2A3B4C5D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7C1D2E3-F4A5-6B78-9C0D-E1F2A3B4C5D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7C1D2E3-F4A5-6B78-9C0D-E1F2A3B4C5D6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = preSolution
+		SolutionGuid = {C6DED4DF-9AFA-42E2-9FD8-7DF3852771E5}
+	EndGlobalSection
+EndGlobal

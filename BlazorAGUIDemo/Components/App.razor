@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generative UI — Blazor + AG-UI Demo</title>
+    <base href="/" />
+    <link rel="stylesheet" href="app.css" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+    <script src="_framework/blazor.server.js"></script>
+    <script>
+        // Tiny helper for auto-scrolling the chat to the latest message.
+        window.scrollToElement = function (el) {
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        };
+    </script>
+</body>
+
+</html>

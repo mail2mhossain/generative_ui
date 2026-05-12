@@ -1,0 +1,19 @@
+@* Renders a single text message bubble (user or agent). *@
+@namespace BlazorAGUIDemo.Components.GenUI
+
+<div class="chat-msg @(IsUser ? "chat-msg--user" : "chat-msg--agent") @(IsError ? "chat-msg--error" : "")">
+    @if (!IsUser)
+    {
+        <div class="chat-msg__avatar">AI</div>
+    }
+    <div class="chat-msg__bubble @(IsStreaming ? "chat-msg__bubble--streaming" : "")">
+        @((MarkupString)(Content ?? ""))
+    </div>
+</div>
+
+@code {
+    [Parameter] public string?  Content     { get; set; }
+    [Parameter] public bool     IsUser      { get; set; }
+    [Parameter] public bool     IsError     { get; set; }
+    [Parameter] public bool     IsStreaming { get; set; }
+}
