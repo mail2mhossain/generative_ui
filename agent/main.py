@@ -1,8 +1,10 @@
 """
-AG-UI demo agent — FastAPI + LangGraph + Anthropic Claude
+AG-UI demo agent — FastAPI + LangGraph + Anthropic Claude + CopilotKit
 
-Emits AG-UI SSE events consumed by the Blazor frontend.
-Two UI tools: show_weather and show_flight_options.
+CopilotKit manages all AG-UI SSE event emission automatically.
+The two-tool pattern (data tool + display tool) ensures that
+TOOL_CALL_ARGS carries the complete display payload that
+WeatherCardParameters and FlightOptionsParameters expect.
 
 Usage:
     pip install -r requirements.txt
@@ -16,34 +18,22 @@ import os
 import re
 import time
 import uuid
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import httpx
-from tool_names import ToolNames
-from ag_ui.core import (
-    EventType,
-    RunErrorEvent,
-    RunFinishedEvent,
-    RunStartedEvent,
-    TextMessageContentEvent,
-    TextMessageEndEvent,
-    TextMessageStartEvent,
-    ToolCallArgsEvent,
-    ToolCallEndEvent,
-    ToolCallStartEvent,
-)
+from ag_ui.core import EventType, RunAgentInput, ToolCallArgsEvent
 from ag_ui.encoder import EventEncoder
+from copilotkit import LangGraphAGUIAgent
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
-
-_encoder = EventEncoder()
+from tool_names import ToolNames
 
 load_dotenv()
 
@@ -71,24 +61,23 @@ app.add_middleware(
 # AG-UI tool names that route to the Blazor frontend (not back to the LLM)
 # ---------------------------------------------------------------------------
 
-UI_TOOL_NAMES:       frozenset[str] = ToolNames.all_ui_tools()
-_DEFERRED_ARG_TOOLS: frozenset[str] = ToolNames.all_ui_tools()  # both tools fetch real data
+UI_TOOL_NAMES: frozenset[str] = ToolNames.all_ui_tools()
 
 # ---------------------------------------------------------------------------
 # Open-Meteo weather fetch (no API key required)
 # ---------------------------------------------------------------------------
 
 _WMO_CONDITIONS: list[tuple[int | range, str]] = [
-    (0,            "Sunny"),
-    (1,            "Sunny"),
-    (2,            "Partly Cloudy"),
-    (3,            "Cloudy"),
-    (range(45, 50), "Cloudy"),      # fog
-    (range(51, 68), "Rainy"),       # drizzle / rain / freezing rain
-    (range(71, 78), "Snowy"),       # snow / snow grains
-    (range(80, 83), "Rainy"),       # rain showers
-    (range(85, 87), "Snowy"),       # snow showers
-    (range(95, 100), "Stormy"),     # thunderstorms
+    (0,              "Sunny"),
+    (1,              "Sunny"),
+    (2,              "Partly Cloudy"),
+    (3,              "Cloudy"),
+    (range(45, 50),  "Cloudy"),       # fog
+    (range(51, 68),  "Rainy"),        # drizzle / rain / freezing rain
+    (range(71, 78),  "Snowy"),        # snow / snow grains
+    (range(80, 83),  "Rainy"),        # rain showers
+    (range(85, 87),  "Snowy"),        # snow showers
+    (range(95, 100), "Stormy"),       # thunderstorms
 ]
 
 
@@ -104,7 +93,7 @@ def _wmo_to_condition(code: int) -> str:
 def _fetch_weather(location: str) -> dict:
     """
     Geocode *location* then fetch current conditions from Open-Meteo.
-    Returns a dict ready to be serialised as UI_TOOL_CALL_ARGS.
+    Returns a dict matching WeatherCardParameters field names.
     Raises httpx.HTTPError or ValueError on failure.
     """
     # Step 1 — geocode
@@ -118,9 +107,9 @@ def _fetch_weather(location: str) -> dict:
     if not results:
         raise ValueError(f"Location not found: {location!r}")
 
-    hit = results[0]
-    lat = hit["latitude"]
-    lon = hit["longitude"]
+    hit     = results[0]
+    lat     = hit["latitude"]
+    lon     = hit["longitude"]
     display = hit.get("name", location)
     country = hit.get("country", "")
     if country:
@@ -130,9 +119,9 @@ def _fetch_weather(location: str) -> dict:
     wx = httpx.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
-            "latitude": lat,
-            "longitude": lon,
-            "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+            "latitude":        lat,
+            "longitude":       lon,
+            "current":         "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
             "wind_speed_unit": "kmh",
         },
         timeout=10.0,
@@ -190,7 +179,7 @@ def _amadeus_access_token() -> str:
 
 def _parse_duration(iso: str) -> str:
     """Convert ISO 8601 duration PT13H30M → '13h 30m'."""
-    h = int(m.group(1)) if (m := re.search(r"(\d+)H", iso)) else 0
+    h  = int(m.group(1)) if (m := re.search(r"(\d+)H", iso)) else 0
     mn = int(m.group(1)) if (m := re.search(r"(\d+)M", iso)) else 0
     return f"{h}h {mn}m" if mn else f"{h}h"
 
@@ -202,9 +191,8 @@ def _mock_flights(origin: str, destination: str, date: str) -> dict:
     """
     import hashlib
 
-    seed = int(hashlib.md5(f"{origin}{destination}{date}".encode()).hexdigest()[:8], 16)
-
-    pool = [
+    seed     = int(hashlib.md5(f"{origin}{destination}{date}".encode()).hexdigest()[:8], 16)
+    pool     = [
         ("British Airways",    "BA"),
         ("Lufthansa",          "LH"),
         ("Air France",         "AF"),
@@ -214,8 +202,6 @@ def _mock_flights(origin: str, destination: str, date: str) -> dict:
         ("KLM",                "KL"),
         ("United Airlines",    "UA"),
     ]
-
-    # Rough duration heuristic: longer route codes → longer flight
     route_len = abs(hash(f"{origin}{destination}")) % 10 + 2   # 2–11 h
 
     flights = []
@@ -251,7 +237,7 @@ def _fetch_flights(origin: str, destination: str, date: str) -> dict:
     """
     Search Amadeus sandbox for up to 4 one-way flight offers.
     Falls back to mock data when AMADEUS_CLIENT_ID is not configured.
-    Returns a dict ready to be serialised as UI_TOOL_CALL_ARGS.
+    Returns a dict matching FlightOptionsParameters field names.
     """
     if not os.getenv("AMADEUS_CLIENT_ID", "").strip() or \
        os.getenv("AMADEUS_CLIENT_ID", "") == "your_client_id_here":
@@ -273,32 +259,24 @@ def _fetch_flights(origin: str, destination: str, date: str) -> dict:
         timeout=15.0,
     )
     resp.raise_for_status()
-    body = resp.json()
-
-    carriers: dict = body.get("dictionaries", {}).get("carriers", {})
-    flights = []
+    body     = resp.json()
+    carriers = body.get("dictionaries", {}).get("carriers", {})
+    flights  = []
 
     for offer in body.get("data", []):
-        itin     = offer["itineraries"][0]
-        segments = itin["segments"]
-        first    = segments[0]
-        last     = segments[-1]
-
-        carrier_code  = first["carrierCode"]
-        airline_name  = carriers.get(carrier_code, carrier_code)
-        flight_number = f"{carrier_code}{first['number']}"
-        dep_time      = first["departure"]["at"][11:16]   # HH:MM
-        arr_time      = last["arrival"]["at"][11:16]
-        duration      = _parse_duration(itin["duration"])
-        price         = float(offer["price"]["total"])
+        itin         = offer["itineraries"][0]
+        segments     = itin["segments"]
+        first        = segments[0]
+        last         = segments[-1]
+        carrier_code = first["carrierCode"]
 
         flights.append({
-            "airline":        airline_name,
-            "flight_number":  flight_number,
-            "departure_time": dep_time,
-            "arrival_time":   arr_time,
-            "price_gbp":      price,
-            "duration":       duration,
+            "airline":        carriers.get(carrier_code, carrier_code),
+            "flight_number":  f"{carrier_code}{first['number']}",
+            "departure_time": first["departure"]["at"][11:16],
+            "arrival_time":   last["arrival"]["at"][11:16],
+            "price_gbp":      float(offer["price"]["total"]),
+            "duration":       _parse_duration(itin["duration"]),
         })
 
     return {
@@ -310,74 +288,168 @@ def _fetch_flights(origin: str, destination: str, date: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tool definitions
+# Tool definitions — two-tool pattern
+#
+# Each UI capability is split into:
+#   1. A data tool  — fetches real data; returns JSON to the LLM context.
+#   2. A display tool — LLM re-supplies all values as explicit parameters;
+#                       CopilotKit emits those as TOOL_CALL_ARGS;
+#                       Blazor hydrates WeatherCardParameters /
+#                       FlightOptionsParameters from those args.
 # ---------------------------------------------------------------------------
 
 
-@tool(ToolNames.SHOW_WEATHER)
-def show_weather(location: str) -> str:
-    """Fetch live weather and display a weather card for the given city or location.
+# --- Weather: data tool ---------------------------------------------------
 
-    The tool retrieves real current conditions from Open-Meteo — no need to
-    supply temperature, humidity, or wind values; the tool fetches them.
+@tool(ToolNames.GET_WEATHER_DATA)
+def get_weather_data(location: str) -> str:
+    """Fetch current weather conditions for a city or location.
+
+    Returns JSON containing:
+      location    — the resolved display name (e.g. "London, United Kingdom")
+      temperature — current temperature in °C
+      condition   — one of: Sunny, Partly Cloudy, Cloudy, Rainy, Snowy, Stormy
+      humidity    — relative humidity as an integer percentage
+      wind_speed  — wind speed in km/h
+
+    Call this tool BEFORE calling show_weather.  Do not invent weather values.
     """
     try:
-        data = _fetch_weather(location)
+        return json.dumps(_fetch_weather(location))
     except ValueError as exc:
         return f"Error: {exc}"
     except httpx.HTTPError as exc:
         return f"Weather service error: {exc}"
-    return json.dumps(data)
 
 
-@tool(ToolNames.SHOW_FLIGHT_OPTIONS)
-def show_flight_options(origin: str, destination: str, date: str) -> str:
-    """Search live flights and display options for the user to browse.
+# --- Weather: display tool ------------------------------------------------
 
-    Use IATA codes for origin and destination (e.g. LHR, JFK, NRT, SYD).
-    date must be YYYY-MM-DD format.
-    The tool fetches real offers from Amadeus — do not supply flight lists.
+@tool(ToolNames.SHOW_WEATHER)
+def show_weather(
+    location:    str,
+    temperature: float,
+    condition:   str,
+    humidity:    int,
+    wind_speed:  float,
+) -> str:
+    """Display a weather card with the provided values.
+
+    IMPORTANT: Call get_weather_data first to obtain real values, then pass
+    ALL fields from its response to this tool unchanged.  Do not invent or
+    modify temperature, condition, humidity, or wind_speed.
+
+    location    — resolved display name from get_weather_data
+    temperature — °C value from get_weather_data
+    condition   — condition string from get_weather_data
+    humidity    — integer percentage from get_weather_data
+    wind_speed  — km/h value from get_weather_data
+    """
+    return "Weather card displayed."
+
+
+# --- Flights: data tool ---------------------------------------------------
+
+@tool(ToolNames.SEARCH_FLIGHTS)
+def search_flights(origin: str, destination: str, date: str) -> str:
+    """Search for available flight options between two airports.
+
+    origin      — IATA airport code (e.g. LHR for London Heathrow)
+    destination — IATA airport code (e.g. JFK for New York JFK)
+    date        — departure date in YYYY-MM-DD format
+
+    Returns JSON containing origin, destination, date, and a flights array.
+    Each flight has: airline, flight_number, departure_time,
+    arrival_time, price_gbp, duration.
+
+    Call this tool BEFORE calling show_flight_options.
     """
     try:
-        data = _fetch_flights(origin, destination, date)
+        return json.dumps(_fetch_flights(origin, destination, date))
     except ValueError as exc:
         return f"Error: {exc}"
     except httpx.HTTPError as exc:
         return f"Flight service error: {exc}"
-    return json.dumps(data)
 
 
-# Verify at module load that the registered constant matches the actual tool name.
-# If someone changes ToolNames without updating the function (or vice versa), this
-# raises immediately — before the server accepts a single request.
-assert show_weather.name == ToolNames.SHOW_WEATHER, (
-    f"Tool name mismatch: function registered as '{show_weather.name}', "
-    f"ToolNames.SHOW_WEATHER='{ToolNames.SHOW_WEATHER}'"
-)
-assert show_flight_options.name == ToolNames.SHOW_FLIGHT_OPTIONS, (
-    f"Tool name mismatch: function registered as '{show_flight_options.name}', "
-    f"ToolNames.SHOW_FLIGHT_OPTIONS='{ToolNames.SHOW_FLIGHT_OPTIONS}'"
-)
+# --- Flights: display tool ------------------------------------------------
+
+@tool(ToolNames.SHOW_FLIGHT_OPTIONS)
+def show_flight_options(
+    origin:      str,
+    destination: str,
+    date:        str,
+    flights:     list[dict[str, Any]],
+) -> str:
+    """Display a flight options panel with the provided data.
+
+    IMPORTANT: Call search_flights first, then pass its ENTIRE response to
+    this tool.  Do not modify, filter, or invent flight details.
+
+    origin, destination, date — pass through from search_flights unchanged
+    flights — the complete flights array from search_flights; each element
+              must have: airline, flight_number, departure_time,
+              arrival_time, price_gbp, duration
+    """
+    return "Flight options displayed."
 
 
 # ---------------------------------------------------------------------------
-# LangGraph agent
+# Assertions — fail at module load on any name mismatch
+# ---------------------------------------------------------------------------
+
+assert get_weather_data.name == ToolNames.GET_WEATHER_DATA, (
+    f"Tool name mismatch: function='{get_weather_data.name}' "
+    f"constant='{ToolNames.GET_WEATHER_DATA}'"
+)
+assert show_weather.name == ToolNames.SHOW_WEATHER, (
+    f"Tool name mismatch: function='{show_weather.name}' "
+    f"constant='{ToolNames.SHOW_WEATHER}'"
+)
+assert search_flights.name == ToolNames.SEARCH_FLIGHTS, (
+    f"Tool name mismatch: function='{search_flights.name}' "
+    f"constant='{ToolNames.SEARCH_FLIGHTS}'"
+)
+assert show_flight_options.name == ToolNames.SHOW_FLIGHT_OPTIONS, (
+    f"Tool name mismatch: function='{show_flight_options.name}' "
+    f"constant='{ToolNames.SHOW_FLIGHT_OPTIONS}'"
+)
+
+# ---------------------------------------------------------------------------
+# System prompt
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = """You are a helpful travel assistant.
 
-When the user asks about weather, call show_weather with just the city or location name.
-The tool fetches live data automatically — do not supply temperature, humidity, or wind values.
+When the user asks about weather, follow these steps in order:
+  1. Call get_weather_data with the city or location name.
+  2. Read the JSON it returns carefully.
+  3. Call show_weather and pass ALL fields from get_weather_data exactly:
+       location    → the display name returned (e.g. "London, United Kingdom")
+       temperature → the temperature value
+       condition   → the condition string (e.g. "Partly Cloudy")
+       humidity    → the humidity integer
+       wind_speed  → the wind_speed value
+  Never invent or estimate weather values.
 
-When the user asks about flights, call show_flight_options with:
-  - origin: IATA airport or city code (e.g. LHR for London, JFK for New York, NRT for Tokyo)
-  - destination: IATA airport or city code
-  - date: departure date as YYYY-MM-DD (if unspecified, use today or the next convenient date)
-The tool fetches real offers from Amadeus — do not supply flight lists yourself.
+When the user asks about flights, follow these steps in order:
+  1. Call search_flights with:
+       origin      → IATA code (e.g. LHR, JFK, NRT, SYD)
+       destination → IATA code
+       date        → YYYY-MM-DD (use today or next convenient date if unspecified)
+  2. Read the JSON it returns carefully.
+  3. Call show_flight_options and pass ALL fields exactly as returned:
+       origin, destination, date → unchanged
+       flights → the complete flights array, every element intact
+  Never modify, filter, or invent flight details.
 
-After calling a UI tool, follow up with one short sentence confirming what you displayed.
+After calling a UI tool (show_weather or show_flight_options), follow up with
+one short sentence confirming what you displayed.
 Keep all non-tool responses brief and conversational.
 """
+
+# ---------------------------------------------------------------------------
+# LangGraph agent
+# ---------------------------------------------------------------------------
 
 llm = ChatAnthropic(
     model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
@@ -386,185 +458,116 @@ llm = ChatAnthropic(
 
 agent = create_react_agent(
     llm,
-    tools=[show_weather, show_flight_options],
+    tools=[get_weather_data, show_weather, search_flights, show_flight_options],
     prompt=_SYSTEM_PROMPT,
+    checkpointer=MemorySaver(),
 )
 
 # ---------------------------------------------------------------------------
-# SSE helper
+# CopilotKit agent — LangGraphAGUIAgent wraps the compiled graph and handles
+# all AG-UI event emission.  A fresh clone is created per request so that
+# per-request state (active_run) is never shared across concurrent calls.
 # ---------------------------------------------------------------------------
 
-
-def _extract_text(chunk) -> str:
-    """Pull plain text out of a LangChain message chunk, ignoring tool-call deltas."""
-    content = getattr(chunk, "content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                parts.append(block.get("text", ""))
-        return "".join(parts)
-    return ""
-
+_travel_agent = LangGraphAGUIAgent(
+    name="travel_agent",
+    description=(
+        "A travel assistant that shows real-time weather cards "
+        "and flight option panels."
+    ),
+    graph=agent,
+)
 
 # ---------------------------------------------------------------------------
-# AG-UI event stream generator
-# ---------------------------------------------------------------------------
-
-
-async def _ag_ui_stream(message: str, thread_id: str) -> AsyncGenerator[str, None]:
-    run_id   = str(uuid.uuid4())
-    tid      = thread_id or run_id
-
-    yield _encoder.encode(RunStartedEvent(
-        type=EventType.RUN_STARTED,
-        run_id=run_id,
-        thread_id=tid,
-    ))
-
-    current_message_id: str | None = None
-    text_open = False
-    # Maps tool run_id → tool_call_name for deferred-arg tools mid-flight.
-    pending_deferred: dict[str, str] = {}
-
-    try:
-        async for event in agent.astream_events(
-            {"messages": [HumanMessage(content=message)]},
-            config={"configurable": {"thread_id": tid}},
-            version="v2",
-        ):
-            kind: str = event["event"]
-
-            # ----------------------------------------------------------
-            # Text streaming
-            # ----------------------------------------------------------
-            if kind == "on_chat_model_start":
-                current_message_id = str(uuid.uuid4())
-                text_open = False
-
-            elif kind == "on_chat_model_stream":
-                text = _extract_text(event["data"]["chunk"])
-                if text:
-                    if not text_open:
-                        yield _encoder.encode(TextMessageStartEvent(
-                            type=EventType.TEXT_MESSAGE_START,
-                            message_id=current_message_id,
-                            role="assistant",
-                        ))
-                        text_open = True
-                    yield _encoder.encode(TextMessageContentEvent(
-                        type=EventType.TEXT_MESSAGE_CONTENT,
-                        message_id=current_message_id,
-                        delta=text,
-                    ))
-
-            elif kind == "on_chat_model_end":
-                if text_open:
-                    yield _encoder.encode(TextMessageEndEvent(
-                        type=EventType.TEXT_MESSAGE_END,
-                        message_id=current_message_id,
-                    ))
-                    text_open = False
-
-            # ----------------------------------------------------------
-            # Tool calls — start
-            # ----------------------------------------------------------
-            elif kind == "on_tool_start":
-                tool_name: str = event["name"]
-                tool_input: dict = event["data"].get("input", {})
-                tool_call_id: str = str(event.get("run_id", uuid.uuid4()))
-
-                # AG-UI contract: close any in-progress text first
-                if text_open:
-                    yield _encoder.encode(TextMessageEndEvent(
-                        type=EventType.TEXT_MESSAGE_END,
-                        message_id=current_message_id,
-                    ))
-                    text_open = False
-
-                if tool_name in UI_TOOL_NAMES:
-                    yield _encoder.encode(ToolCallStartEvent(
-                        type=EventType.TOOL_CALL_START,
-                        tool_call_id=tool_call_id,
-                        tool_call_name=tool_name,
-                    ))
-
-                    if tool_name in _DEFERRED_ARG_TOOLS:
-                        # Args will arrive via on_tool_end once the real fetch completes.
-                        pending_deferred[tool_call_id] = tool_name
-                    else:
-                        # LLM-populated tool: emit args immediately from the input.
-                        yield _encoder.encode(ToolCallArgsEvent(
-                            type=EventType.TOOL_CALL_ARGS,
-                            tool_call_id=tool_call_id,
-                            delta=json.dumps(tool_input),
-                        ))
-                        yield _encoder.encode(ToolCallEndEvent(
-                            type=EventType.TOOL_CALL_END,
-                            tool_call_id=tool_call_id,
-                        ))
-
-            # ----------------------------------------------------------
-            # Tool calls — end (deferred-arg tools only)
-            # ----------------------------------------------------------
-            elif kind == "on_tool_end":
-                tool_call_id = str(event.get("run_id", ""))
-                if tool_call_id in pending_deferred:
-                    raw_output = event["data"].get("output", "")
-                    if hasattr(raw_output, "content"):
-                        raw_output = raw_output.content
-                    # Validate the tool returned valid JSON; fall back gracefully.
-                    try:
-                        json.loads(raw_output)
-                        args_json = raw_output
-                    except (json.JSONDecodeError, TypeError):
-                        args_json = json.dumps({"error": str(raw_output)})
-
-                    yield _encoder.encode(ToolCallArgsEvent(
-                        type=EventType.TOOL_CALL_ARGS,
-                        tool_call_id=tool_call_id,
-                        delta=args_json,
-                    ))
-                    yield _encoder.encode(ToolCallEndEvent(
-                        type=EventType.TOOL_CALL_END,
-                        tool_call_id=tool_call_id,
-                    ))
-                    del pending_deferred[tool_call_id]
-
-    except Exception as exc:  # noqa: BLE001
-        yield _encoder.encode(RunErrorEvent(
-            type=EventType.RUN_ERROR,
-            message=str(exc),
-        ))
-
-    yield _encoder.encode(RunFinishedEvent(
-        type=EventType.RUN_FINISHED,
-        run_id=run_id,
-        thread_id=tid,
-    ))
-
-
-# ---------------------------------------------------------------------------
-# API endpoint
+# Blazor compatibility endpoint
+#
+# The C# AgUiStreamService posts:
+#   POST /api/agent/run
+#   { "message": "...", "thread_id": "..." }
+#
+# We convert that to a RunAgentInput and call _travel_agent.run() directly —
+# the same way add_langgraph_fastapi_endpoint works internally.
+# No HTTP proxy, no extra round-trip.
 # ---------------------------------------------------------------------------
 
 
 class RunRequest(BaseModel):
-    message: str
+    message:   str
     thread_id: str = ""
 
 
 @app.post("/api/agent/run")
 async def run_agent(body: RunRequest) -> StreamingResponse:
+    """Blazor-compatible endpoint: converts the simple request format to
+    RunAgentInput and streams AG-UI SSE events back to the C# frontend."""
+
+    run_input = RunAgentInput(
+        thread_id=body.thread_id or str(uuid.uuid4()),
+        run_id=str(uuid.uuid4()),
+        messages=[
+            {
+                "id":      str(uuid.uuid4()),
+                "role":    "user",
+                "content": body.message,
+            }
+        ],
+        state={},
+        tools=[],
+        context=[],
+        forwarded_props=None,
+    )
+
+    encoder       = EventEncoder(accept="text/event-stream")
+    request_agent = _travel_agent.clone()
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        # ag_ui_langgraph streams TOOL_CALL_ARGS as multiple partial JSON deltas
+        # (one per LLM token).  The C# AgentChat.razor calls JsonDocument.Parse()
+        # on every delta, which throws on a partial fragment like {"location":"Dh…
+        #
+        # Fix: accumulate all partial deltas per tool_call_id, then emit ONE
+        # complete TOOL_CALL_ARGS event just before TOOL_CALL_END.
+        args_buffer: dict[str, str] = {}
+
+        try:
+            async for event in request_agent.run(run_input):
+                t = event.type
+
+                if t == EventType.TOOL_CALL_START:
+                    args_buffer[event.tool_call_id] = ""
+                    yield encoder.encode(event)
+
+                elif t == EventType.TOOL_CALL_ARGS:
+                    args_buffer.setdefault(event.tool_call_id, "")
+                    args_buffer[event.tool_call_id] += event.delta or ""
+                    # Hold — do not yield partial deltas
+
+                elif t == EventType.TOOL_CALL_END:
+                    accumulated = args_buffer.pop(event.tool_call_id, "")
+                    if accumulated:
+                        # Emit the fully-assembled args as one event
+                        yield encoder.encode(ToolCallArgsEvent(
+                            type=EventType.TOOL_CALL_ARGS,
+                            tool_call_id=event.tool_call_id,
+                            delta=accumulated,
+                        ))
+                    yield encoder.encode(event)
+
+                else:
+                    yield encoder.encode(event)
+
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception("Agent stream error: %s", exc)
+            raise
+
     return StreamingResponse(
-        _ag_ui_stream(body.message, body.thread_id),
+        event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control":     "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
+            "Connection":        "keep-alive",
         },
     )
 
@@ -577,5 +580,6 @@ async def health() -> dict:
 @app.get("/api/agent/schema")
 async def schema() -> dict:
     """Expose the list of UI tool names so the Blazor frontend can validate
-    its ComponentRegistry against the agent at startup."""
+    its ComponentRegistry at startup.  Only UI tools are listed here —
+    data tools are internal and invisible to Blazor."""
     return {"ui_tools": sorted(UI_TOOL_NAMES)}

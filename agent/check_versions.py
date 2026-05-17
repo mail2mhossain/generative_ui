@@ -14,6 +14,7 @@ package_names = [
     "langchain-anthropic",
     "httpx",
     "ag-ui-protocol",
+    "copilotkit"
 ]
 
 # Print the Python version
