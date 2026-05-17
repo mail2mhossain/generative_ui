@@ -1,0 +1,73 @@
+@*
+    McpAppFrame.razor — Pillar 3A: MCP App widget.
+
+    Registered in ComponentRegistry under ToolNames.OpenExcalidraw.
+    When the agent calls open_excalidraw it emits TOOL_CALL_ARGS carrying
+    McpAppParams (mcp_server_url, initial_prompt, title).
+
+    Lifecycle:
+      1. OnParametersSetAsync  — calls McpManifestService.FetchAsync(McpServerUrl)
+                                 to retrieve the app_url from the MCP manifest.
+      2. OnAfterRenderAsync    — once the iframe is in the DOM, calls
+                                 mcpAppBridge.js:initBridge then sendPrompt.
+      3. DisposeAsync          — calls mcpAppBridge.js:disposeBridge to remove
+                                 the postMessage listener and release the
+                                 DotNetObjectReference.
+
+    Security:
+      The iframe uses sandbox="allow-scripts allow-same-origin allow-forms".
+      "allow-same-origin" is needed so the app can make XHR/fetch calls to
+      its own backend.  The parent page is a different origin so the app
+      cannot read Blazor cookies or localStorage.
+*@
+
+@namespace BlazorAGUIDemo.Components.Widgets
+@using AgUiProtocol
+@implements IAsyncDisposable
+@inject AgUiProtocol.McpManifestService ManifestService
+@inject IJSRuntime JS
+
+<div class="mcp-app-frame">
+
+    @* ── Title bar ── *@
+    <div class="mcp-app-title-bar">
+        <span class="mcp-app-badge">MCP</span>
+        <span class="mcp-app-title">@_displayTitle</span>
+    </div>
+
+    @* ── Body ── *@
+    <div class="mcp-app-body">
+
+        @if (_loading)
+        {
+            <div class="mcp-app-loading">
+                <div class="mcp-app-loading__spinner"></div>
+                <span>Loading @_displayTitle…</span>
+            </div>
+        }
+        else if (_error is not null)
+        {
+            <div class="mcp-app-error">
+                <span class="mcp-app-error__icon">⚠️</span>
+                <span>@_error</span>
+            </div>
+        }
+        else
+        {
+            <iframe id="@_iframeId"
+                    class="mcp-app-iframe"
+                    src="@_appUrl"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    allow="clipboard-read; clipboard-write"
+                    title="@_displayTitle" />
+        }
+
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Tool parameters deserialized from TOOL_CALL_ARGS by PendingComponentModel.
+    /// </summary>
+    [Parameter] public McpAppParams Params { get; set; } = new();
+}

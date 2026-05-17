@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BlazingStory" Version="1.0.0-preview.79" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AgUiProtocol\AgUiProtocol.csproj" />
   </ItemGroup>
 

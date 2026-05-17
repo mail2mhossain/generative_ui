@@ -23,6 +23,15 @@ builder.Services.AddHttpClient<AgUiStreamService>(client =>
 });
 
 // ---------------------------------------------------------------------------
+// MCP manifest service — Pillar 3A
+// AddHttpClient<T>() registers McpManifestService as a typed client (scoped),
+// injecting a pooled HttpClient that is safe to use in Blazor Server circuits.
+// No base address is set here — the MCP server URL comes from McpAppParams at
+// runtime and is passed directly to McpManifestService.FetchAsync().
+// ---------------------------------------------------------------------------
+builder.Services.AddHttpClient<McpManifestService>();
+
+// ---------------------------------------------------------------------------
 // ComponentRegistry — the developer-owned map of AG-UI tool names → components
 // Descriptions here become the suggestion chips in the chat UI.
 // ---------------------------------------------------------------------------
@@ -47,6 +56,13 @@ builder.Services.AddSingleton<ComponentRegistry>(sp =>
         description:     "Display a composable dashboard built from metric cards, flight rows, and more.",
         suggestedPrompt: "Give me a travel dashboard for a trip from London to New York",
         expectedHeight:  420);
+
+    // Pillar 3A — MCP App
+    registry.Register<McpAppFrame, McpAppParams>(
+        toolName:        ToolNames.OpenExcalidraw,
+        description:     "Open the Excalidraw diagramming app to create or edit diagrams.",
+        suggestedPrompt: "Draw a sequence diagram for the login flow",
+        expectedHeight:  520);
 
     return registry;
 });
