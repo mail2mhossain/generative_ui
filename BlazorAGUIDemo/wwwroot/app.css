@@ -35,9 +35,105 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--agent-bubble-text); }
+html, body { height: 100%; overflow: hidden; font-family: var(--font); background: var(--bg); color: var(--agent-bubble-text); }
 
 a { color: inherit; }
+
+/* =========================================================================
+   App shell — sidebar + main content
+   ========================================================================= */
+
+.layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ---- Sidebar ---- */
+
+.layout__sidebar {
+    width: 230px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar__brand {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: 1.4rem 1.25rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.sidebar__logo {
+    font-size: 1.5rem;
+    color: var(--accent);
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.sidebar__title {
+    font-weight: 700;
+    font-size: .97rem;
+    letter-spacing: -.015em;
+    color: #fff;
+}
+
+.sidebar__nav {
+    flex: 1;
+    padding: .85rem .75rem;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+
+.sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .55rem .8rem;
+    border-radius: var(--radius-sm);
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--sidebar-text-muted);
+    text-decoration: none;
+    transition: background .15s, color .15s;
+}
+
+.sidebar__link:hover {
+    background: rgba(255,255,255,.07);
+    color: var(--sidebar-text);
+}
+
+.sidebar__link--active {
+    background: rgba(99,102,241,.28);
+    color: #fff;
+}
+
+.sidebar__footer {
+    padding: .85rem 1.25rem 1.25rem;
+    border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.sidebar__meta {
+    font-size: .72rem;
+    color: var(--sidebar-text-muted);
+    line-height: 1.75;
+}
+
+/* ---- Main content ---- */
+
+.layout__main {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
 
 /* =========================================================================
    AgentChat layout
