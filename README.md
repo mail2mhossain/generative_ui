@@ -101,8 +101,8 @@ conda remove --prefix Z:\conda_env\generative_ui_agent_env --all
 
    python client.py "Show me flights from London to New York on 2026-06-01"
 
-   Give me a travel dashboard for a trip from London to New York
-   
+   declarative_gen_ui = "Give me a travel dashboard for a trip from London to New York"
+
 
    # Interactive REPL
    python client.py
