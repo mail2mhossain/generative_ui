@@ -49,55 +49,64 @@ demo/
 
 ---
 
-## 1. Agent — `demo/agent`
+## Setup and Running the Source Code:
 
-**Project name:** `agent` (no package name — run directly with `uvicorn`)
+1. **Create a Conda environment (Assuming Anaconda is installed)**:
+   ```bash
+   conda create --prefix Z:\\conda_env\\generative_ui_agent_env Python=3.11 -y && conda activate Z:\conda_env\generative_ui_agent_env
+   ```
 
-### Dependencies (`requirements.txt`)
+2. **Activate the environment**:
+   ```bash
+   conda activate Z:\conda_env\generative_ui_agent_env
+   ```
 
-| Package | Purpose |
-|---|---|
-| `fastapi` | HTTP server and SSE endpoint |
-| `uvicorn[standard]` | ASGI server to run FastAPI |
-| `python-dotenv` | Loads `ANTHROPIC_API_KEY` from `.env` |
-| `langchain-anthropic` | LangChain adapter for Claude (Anthropic) |
-| `langgraph` | Stateful agent orchestration and tool calling |
+3. **Install the required packages**:
+   ```bash
+   pip install -r requirements.txt
+   
+   ```
 
-### Setup
 
+*To remove the environment after use:*
 ```bash
-cd demo/agent
-
-# 1. Create a virtual environment (recommended)
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Set your Anthropic API key
-copy .env.example .env          # Windows
-# cp .env.example .env          # macOS / Linux
-# Then open .env and paste your key:
-#   ANTHROPIC_API_KEY=sk-ant-...
+conda remove --prefix Z:\conda_env\generative_ui_agent_env --all
 ```
-
-### Run
-
-```bash
-uvicorn main:app --reload --port 8000
-```
-
-The agent will be available at `http://localhost:8000`.
-Verify it is running: open `http://localhost:8000/health` — you should see `{"status":"ok"}`.
 
 ---
 
-## 2. Blazor frontend — `demo/BlazorAGUIDemo`
+## Run the Agent
 
-**Project name:** `BlazorAGUIDemo`  
-**Target framework:** .NET 8 (`net8.0`)
+4. **Start the agent server**:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+
+   You should see:
+   ```
+   INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+   INFO:     Application startup complete.
+   ```
+
+5. **Verify it is running** — open a browser or run:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+   Expected response: `{"status":"ok"}`
+
+6. **Test with the Python client** — open a second terminal, activate the environment, then:
+   ```bash
+   # Single message
+   python client.py "What's the weather in Dhaka?"
+
+   python client.py "Show me flights from London to New York on 2026-06-01"
+
+   # Interactive REPL
+   python client.py
+   ```
+
+   Press **Ctrl+C** to stop the server.
+   
 
 ### Dependencies
 
@@ -109,58 +118,6 @@ All dependencies come from the .NET 8 SDK — no NuGet packages need to be added
 | `System.Net.Http` | Included in .NET 8 SDK |
 | `System.Text.Json` | Included in .NET 8 SDK |
 
-### Setup
-
-```bash
-cd demo/BlazorAGUIDemo
-
-# Restore (happens automatically on run, but you can do it explicitly)
-dotnet restore
-```
-
-No environment variables are needed on the Blazor side.
-The agent URL is configured in `appsettings.json`:
-
-```json
-{
-  "AgentUrl": "http://localhost:8000"
-}
-```
-
-Change this value if your agent is running on a different host or port.
-
-### Run
-
-```bash
-dotnet run
-```
-
-The app opens at:
-- `https://localhost:7001` (HTTPS)
-- `http://localhost:5001` (HTTP)
-
----
-
-## Running both together
-
-Open **two terminals** side by side.
-
-**Terminal 1 — start the agent first:**
-
-```bash
-cd demo/agent
-.venv\Scripts\activate
-uvicorn main:app --reload --port 8000
-```
-
-**Terminal 2 — start the Blazor frontend:**
-
-```bash
-cd demo/BlazorAGUIDemo
-dotnet run
-```
-
-Open `https://localhost:7001` in your browser.
 
 ---
 
