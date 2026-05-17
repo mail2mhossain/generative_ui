@@ -15,8 +15,9 @@ class ToolNames:
     # ------------------------------------------------------------------
     # UI tools — must match Blazor ComponentRegistry exactly
     # ------------------------------------------------------------------
-    SHOW_WEATHER        = "show_weather"
-    SHOW_FLIGHT_OPTIONS = "show_flight_options"
+    SHOW_WEATHER          = "show_weather"
+    SHOW_FLIGHT_OPTIONS   = "show_flight_options"
+    SHOW_DECLARATIVE_VIEW = "show_declarative_view"
 
     # ------------------------------------------------------------------
     # Data tools — internal; invisible to Blazor
@@ -27,4 +28,8 @@ class ToolNames:
     @classmethod
     def all_ui_tools(cls) -> frozenset[str]:
         """Only UI tools.  Data tools are deliberately excluded."""
-        return frozenset({cls.SHOW_WEATHER, cls.SHOW_FLIGHT_OPTIONS})
+        return frozenset({
+            cls.SHOW_WEATHER,
+            cls.SHOW_FLIGHT_OPTIONS,
+            cls.SHOW_DECLARATIVE_VIEW,
+        })

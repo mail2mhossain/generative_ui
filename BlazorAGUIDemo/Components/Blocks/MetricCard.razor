@@ -1,0 +1,23 @@
+@* Declarative block — displays a single key metric with icon, value, label, and optional trend *@
+@namespace BlazorAGUIDemo.Components.Blocks
+
+<div class="metric-card">
+    @if (!string.IsNullOrEmpty(Params.Icon))
+    {
+        <div class="metric-card__icon">@Params.Icon</div>
+    }
+    <div class="metric-card__body">
+        <div class="metric-card__value">
+            @Params.Value
+            @if (!string.IsNullOrEmpty(Params.TrendArrow))
+            {
+                <span class="metric-card__trend @Params.TrendCssClass">@Params.TrendArrow</span>
+            }
+        </div>
+        <div class="metric-card__label">@Params.Label</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public MetricCardParams Params { get; set; } = new();
+}

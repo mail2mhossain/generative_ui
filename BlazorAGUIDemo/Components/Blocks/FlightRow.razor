@@ -1,0 +1,28 @@
+@* Declarative block — single flight row (reuses flight-row CSS from Pillar 1) *@
+@namespace BlazorAGUIDemo.Components.Blocks
+
+<div class="flight-row">
+    <div class="flight-row__airline">
+        <span class="flight-row__badge">@Params.AirlineInitial</span>
+        <div>
+            <div class="flight-row__airline-name">@Params.Airline</div>
+            <div class="flight-row__number">@Params.FlightNumber</div>
+        </div>
+    </div>
+
+    <div class="flight-row__times">
+        <span class="flight-row__depart">@Params.DepartureTime</span>
+        <span class="flight-row__arrow">──────▶</span>
+        <span class="flight-row__arrive">@Params.ArrivalTime</span>
+    </div>
+
+    <div class="flight-row__meta">
+        <span class="flight-row__duration">⏱ @Params.Duration</span>
+    </div>
+
+    <div class="flight-row__price">£@Params.PriceGbp.ToString("0")</div>
+</div>
+
+@code {
+    [Parameter] public FlightRowParams Params { get; set; } = new();
+}

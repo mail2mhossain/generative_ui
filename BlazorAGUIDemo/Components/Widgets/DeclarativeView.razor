@@ -1,0 +1,35 @@
+@*
+    DeclarativeView.razor — Pillar 2 top-level widget.
+
+    Registered in ComponentRegistry under ToolNames.ShowDeclarativeView.
+    From AgentChat.razor's perspective this is just another Pillar-1 widget:
+    it receives TOOL_CALL_ARGS, PendingComponentModel hydrates the JSON into
+    DeclarativeSchema (the params type), and DynamicComponent renders this.
+
+    Internally it delegates all block layout to DeclarativeRenderer.
+*@
+
+@namespace BlazorAGUIDemo.Components.Widgets
+@using AgUiProtocol
+@using BlazorAGUIDemo.Components.GenUI
+
+<div class="declarative-view">
+    @if (!string.IsNullOrEmpty(Params.Title))
+    {
+        <div class="declarative-view__header">
+            <span class="declarative-view__header-icon">⊞</span>
+            @Params.Title
+        </div>
+    }
+    <div class="declarative-view__body">
+        <DeclarativeRenderer Schema="@Params" />
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The full schema — title + blocks — deserialized from the agent's
+    /// TOOL_CALL_ARGS by PendingComponentModel using JsonNamingPolicy.SnakeCaseLower.
+    /// </summary>
+    [Parameter] public DeclarativeSchema Params { get; set; } = new();
+}

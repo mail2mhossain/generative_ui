@@ -8,6 +8,7 @@ namespace BlazorAGUIDemo.Services;
 /// </summary>
 public static class ToolNames
 {
-    public const string ShowWeather       = "show_weather";
-    public const string ShowFlightOptions = "show_flight_options";
+    public const string ShowWeather         = "show_weather";
+    public const string ShowFlightOptions   = "show_flight_options";
+    public const string ShowDeclarativeView = "show_declarative_view";
 }

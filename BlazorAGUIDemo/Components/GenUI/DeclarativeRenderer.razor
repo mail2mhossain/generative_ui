@@ -1,0 +1,99 @@
+@*
+    DeclarativeRenderer.razor — Pillar 2 orchestration component.
+
+    Iterates DeclarativeSchema.Blocks, looks up each block type in BlockRegistry,
+    hydrates the block's extension data into the registered params type, then
+    renders it via DynamicComponent.
+
+    Consecutive metric_card blocks are automatically wrapped in a
+    .metric-cards-row grid so they flow side-by-side without any special
+    logic from the agent.
+
+    Unknown block types are rendered as a visible warning so developers can
+    spot missing registrations immediately.
+*@
+
+@namespace BlazorAGUIDemo.Components.GenUI
+@using AgUiProtocol
+@using BlazorAGUIDemo.Components.Blocks
+@inject BlockRegistry BlockRegistry
+
+@{
+    // Group consecutive metric_card blocks so they render in a CSS grid row.
+    // All other block types are rendered individually full-width.
+    var groups = GroupBlocks(Schema.Blocks);
+}
+
+@foreach (var group in groups)
+{
+    if (group.IsMetricGroup)
+    {
+        <div class="metric-cards-row">
+            @foreach (var block in group.Blocks)
+            {
+                @RenderBlock(block)
+            }
+        </div>
+    }
+    else
+    {
+        @RenderBlock(group.Blocks[0])
+    }
+}
+
+@code {
+    [Parameter] public DeclarativeSchema Schema { get; set; } = new();
+
+    // -----------------------------------------------------------------------
+    // Block rendering
+    // -----------------------------------------------------------------------
+
+    private RenderFragment RenderBlock(DeclarativeBlock block) => builder =>
+    {
+        var reg = BlockRegistry.GetRegistration(block.Type);
+        if (reg is null)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "declarative-renderer__unknown");
+            builder.AddContent(2, $"⚠ Unknown block type: \"{block.Type}\"");
+            builder.CloseElement();
+            return;
+        }
+
+        var paramsObj = BlockRegistry.Hydrate(block, reg);
+        if (paramsObj is null) return;
+
+        builder.OpenComponent(0, reg.ComponentType);
+        builder.AddAttribute(1, "Params", paramsObj);
+        builder.CloseComponent();
+    };
+
+    // -----------------------------------------------------------------------
+    // Grouping — consecutive metric_card blocks form one row
+    // -----------------------------------------------------------------------
+
+    private record BlockGroup(List<DeclarativeBlock> Blocks, bool IsMetricGroup);
+
+    private static List<BlockGroup> GroupBlocks(List<DeclarativeBlock> blocks)
+    {
+        var groups = new List<BlockGroup>();
+        var i      = 0;
+
+        while (i < blocks.Count)
+        {
+            if (blocks[i].Type == "metric_card")
+            {
+                var metrics = new List<DeclarativeBlock>();
+                while (i < blocks.Count && blocks[i].Type == "metric_card")
+                    metrics.Add(blocks[i++]);
+                groups.Add(new BlockGroup(metrics, IsMetricGroup: true));
+            }
+            else
+            {
+                groups.Add(new BlockGroup(new List<DeclarativeBlock> { blocks[i++] }, IsMetricGroup: false));
+            }
+        }
+
+        return groups;
+    }
+}

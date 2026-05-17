@@ -393,6 +393,58 @@ def show_flight_options(
     return "Flight options displayed."
 
 
+# --- Declarative view: display tool ---------------------------------------
+
+@tool(ToolNames.SHOW_DECLARATIVE_VIEW)
+def show_declarative_view(title: str, blocks: list[dict[str, Any]]) -> str:
+    """Display a rich declarative UI layout assembled from typed building blocks.
+
+    Use this tool when the user asks for a dashboard, summary, overview, or
+    comparison — anything that benefits from a mixed layout of metrics,
+    flight rows, and headings rather than a single card.
+
+    title  — a short heading for the whole layout (e.g. "London → New York Travel Summary")
+    blocks — ordered list of block objects.  Each block MUST have a "type" field.
+
+    Supported block types and their required fields:
+
+    page_title
+      text      — the heading text (string)
+      subtitle  — optional subheading (string, omit if not needed)
+
+    search_header
+      origin      — departure city or airport code (string)
+      destination — arrival city or airport code (string)
+      date        — travel date, e.g. "2025-06-15" (string)
+      label       — optional summary label, e.g. "4 flights found" (string)
+
+    metric_card
+      label — short label below the value (string)
+      value — the highlighted metric string, e.g. "£245" or "13°C" (string)
+      icon  — optional emoji icon, e.g. "✈" or "🌡" (string)
+      trend — optional direction: "up", "down", or "" (string)
+
+    flight_row
+      airline        — full airline name (string)
+      flight_number  — IATA code + number, e.g. "BA117" (string)
+      departure_time — HH:MM (string)
+      arrival_time   — HH:MM (string)
+      duration       — human readable, e.g. "7h 30m" (string)
+      price_gbp      — numeric price as a float (number)
+      airline_initial — single letter badge, e.g. "B" (string)
+
+    Rules:
+    - Always start with a page_title block.
+    - For travel summaries: add a search_header, then metric_cards (cheapest price,
+      fastest flight, weather), then individual flight_row blocks.
+    - Consecutive metric_card blocks are automatically arranged in a grid row —
+      group them together for best layout.
+    - Call the relevant data tools (get_weather_data, search_flights) FIRST to
+      obtain real values.  Never invent prices, times, or weather figures.
+    """
+    return "Declarative view displayed."
+
+
 # ---------------------------------------------------------------------------
 # Assertions — fail at module load on any name mismatch
 # ---------------------------------------------------------------------------
@@ -413,6 +465,10 @@ assert show_flight_options.name == ToolNames.SHOW_FLIGHT_OPTIONS, (
     f"Tool name mismatch: function='{show_flight_options.name}' "
     f"constant='{ToolNames.SHOW_FLIGHT_OPTIONS}'"
 )
+assert show_declarative_view.name == ToolNames.SHOW_DECLARATIVE_VIEW, (
+    f"Tool name mismatch: function='{show_declarative_view.name}' "
+    f"constant='{ToolNames.SHOW_DECLARATIVE_VIEW}'"
+)
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -420,10 +476,11 @@ assert show_flight_options.name == ToolNames.SHOW_FLIGHT_OPTIONS, (
 
 _SYSTEM_PROMPT = """You are a helpful travel assistant.
 
-When the user asks about weather, follow these steps in order:
+== SINGLE-FOCUS REQUESTS ==
+
+When the user asks ONLY about weather (no flights):
   1. Call get_weather_data with the city or location name.
-  2. Read the JSON it returns carefully.
-  3. Call show_weather and pass ALL fields from get_weather_data exactly:
+  2. Call show_weather and pass ALL fields from get_weather_data exactly:
        location    → the display name returned (e.g. "London, United Kingdom")
        temperature → the temperature value
        condition   → the condition string (e.g. "Partly Cloudy")
@@ -431,20 +488,42 @@ When the user asks about weather, follow these steps in order:
        wind_speed  → the wind_speed value
   Never invent or estimate weather values.
 
-When the user asks about flights, follow these steps in order:
+When the user asks ONLY about flights (no weather):
   1. Call search_flights with:
        origin      → IATA code (e.g. LHR, JFK, NRT, SYD)
        destination → IATA code
        date        → YYYY-MM-DD (use today or next convenient date if unspecified)
-  2. Read the JSON it returns carefully.
-  3. Call show_flight_options and pass ALL fields exactly as returned:
+  2. Call show_flight_options and pass ALL fields exactly as returned:
        origin, destination, date → unchanged
        flights → the complete flights array, every element intact
   Never modify, filter, or invent flight details.
 
-After calling a UI tool (show_weather or show_flight_options), follow up with
-one short sentence confirming what you displayed.
-Keep all non-tool responses brief and conversational.
+== DASHBOARD / SUMMARY / OVERVIEW REQUESTS ==
+
+When the user asks for a "dashboard", "travel summary", "overview", "trip plan",
+or anything that combines flights AND weather for the same trip:
+  1. Call search_flights to get real flight data.
+  2. Call get_weather_data for the DESTINATION city.
+  3. Then call show_declarative_view with:
+       title  → e.g. "London → New York Travel Summary"
+       blocks → an ordered list of blocks:
+
+       a. page_title block — title text + subtitle with the travel date
+       b. search_header block — origin, destination, date, label = "N flights found"
+       c. Three metric_card blocks side-by-side:
+            - Cheapest flight: label="Cheapest Flight", value="£<price>", icon="✈"
+            - Fastest flight:  label="Fastest Flight", value="<duration>", icon="⏱"
+            - Destination weather: label="Weather at <city>", value="<temp>°C <condition>", icon="🌡"
+       d. One flight_row block per flight from search_flights (all fields, including
+          airline_initial = first letter of airline name)
+
+  IMPORTANT: All values must come from the data tools — never invent prices,
+  times, durations, or weather figures.
+
+== GENERAL ==
+
+After calling any UI display tool, follow up with one short sentence confirming
+what was displayed. Keep all non-tool responses brief and conversational.
 """
 
 # ---------------------------------------------------------------------------
@@ -458,7 +537,13 @@ llm = ChatAnthropic(
 
 agent = create_react_agent(
     llm,
-    tools=[get_weather_data, show_weather, search_flights, show_flight_options],
+    tools=[
+        get_weather_data,
+        show_weather,
+        search_flights,
+        show_flight_options,
+        show_declarative_view,
+    ],
     prompt=_SYSTEM_PROMPT,
     checkpointer=MemorySaver(),
 )
@@ -472,8 +557,8 @@ agent = create_react_agent(
 _travel_agent = LangGraphAGUIAgent(
     name="travel_agent",
     description=(
-        "A travel assistant that shows real-time weather cards "
-        "and flight option panels."
+        "A travel assistant that shows real-time weather cards, "
+        "flight option panels, and composable travel dashboards."
     ),
     graph=agent,
 )

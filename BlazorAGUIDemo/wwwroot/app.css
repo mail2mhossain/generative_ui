@@ -520,3 +520,191 @@ a { color: inherit; }
     color: #94a3b8;
     font-style: italic;
 }
+
+/* =========================================================================
+   Pillar 2 — Declarative View container
+   ========================================================================= */
+
+.declarative-view {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    max-width: 640px;
+}
+
+.declarative-view__header {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .9rem 1.25rem;
+    background: linear-gradient(135deg, #1e3a8a 0%, #4338ca 60%, #6366f1 100%);
+    color: #fff;
+    font-weight: 700;
+    font-size: .97rem;
+    letter-spacing: -.01em;
+}
+
+.declarative-view__header-icon {
+    font-size: 1.1rem;
+    opacity: .85;
+}
+
+.declarative-view__body {
+    padding: .85rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+/* =========================================================================
+   Pillar 2 — MetricCard block
+   ========================================================================= */
+
+/* Grid row: consecutive metric cards rendered side-by-side */
+.metric-cards-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: .5rem;
+}
+
+.metric-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: .75rem .9rem;
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+}
+
+.metric-card__icon {
+    font-size: 1.6rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.metric-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    min-width: 0;
+}
+
+.metric-card__value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--agent-bubble-text);
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    white-space: nowrap;
+}
+
+.metric-card__trend        { font-size: .85rem; font-weight: 600; }
+.metric-card__trend--up    { color: #16a34a; }
+.metric-card__trend--down  { color: #dc2626; }
+
+.metric-card__label {
+    font-size: .72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 500;
+}
+
+/* =========================================================================
+   Pillar 2 — PageTitle block
+   ========================================================================= */
+
+.page-title {
+    padding: .4rem 0 .25rem;
+}
+
+.page-title__text {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--agent-bubble-text);
+}
+
+.page-title__subtitle {
+    font-size: .8rem;
+    color: #64748b;
+    margin-top: .15rem;
+}
+
+/* =========================================================================
+   Pillar 2 — SearchHeader block
+   ========================================================================= */
+
+.search-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    border-radius: var(--radius-md);
+    padding: .85rem 1.1rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.search-header__route {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.search-header__place {
+    letter-spacing: .02em;
+}
+
+.search-header__arrow {
+    font-size: 1rem;
+    opacity: .7;
+}
+
+.search-header__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: .15rem;
+}
+
+.search-header__date {
+    font-size: .8rem;
+    opacity: .85;
+    font-weight: 500;
+}
+
+.search-header__label {
+    font-size: .72rem;
+    opacity: .65;
+}
+
+/* =========================================================================
+   Pillar 2 — FlightRow block (inside declarative view)
+   Reuses .flight-row CSS from Pillar 1; this adds the card wrapper.
+   ========================================================================= */
+
+.declarative-view__body .flight-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.declarative-view__body .flight-row:hover {
+    background: #f8fafc;
+}
+
+/* Unknown block type warning */
+.declarative-renderer__unknown {
+    padding: .5rem .75rem;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: var(--radius-sm);
+    font-size: .8rem;
+    font-family: monospace;
+}

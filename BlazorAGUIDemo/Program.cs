@@ -1,5 +1,6 @@
 using AgUiProtocol;
 using BlazorAGUIDemo.Components;
+using BlazorAGUIDemo.Components.Blocks;
 using BlazorAGUIDemo.Components.Widgets;
 using BlazorAGUIDemo.Services;
 
@@ -41,6 +42,25 @@ builder.Services.AddSingleton<ComponentRegistry>(sp =>
         suggestedPrompt: "Show me flights from London to New York next Friday",
         expectedHeight:  360);
 
+    registry.Register<DeclarativeView, DeclarativeSchema>(
+        toolName:        ToolNames.ShowDeclarativeView,
+        description:     "Display a composable dashboard built from metric cards, flight rows, and more.",
+        suggestedPrompt: "Give me a travel dashboard for a trip from London to New York",
+        expectedHeight:  420);
+
+    return registry;
+});
+
+// ---------------------------------------------------------------------------
+// BlockRegistry — maps declarative block type strings → Blazor components
+// ---------------------------------------------------------------------------
+builder.Services.AddSingleton<BlockRegistry>(sp =>
+{
+    var registry = new BlockRegistry();
+    registry.Register<MetricCard,    MetricCardParams>   ("metric_card");
+    registry.Register<PageTitle,     PageTitleParams>    ("page_title");
+    registry.Register<SearchHeader,  SearchHeaderParams> ("search_header");
+    registry.Register<FlightRow,     FlightRowParams>    ("flight_row");
     return registry;
 });
 

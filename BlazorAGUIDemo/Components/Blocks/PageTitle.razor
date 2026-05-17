@@ -1,0 +1,14 @@
+@* Declarative block — section heading with optional subtitle *@
+@namespace BlazorAGUIDemo.Components.Blocks
+
+<div class="page-title">
+    <h3 class="page-title__text">@Params.Text</h3>
+    @if (!string.IsNullOrEmpty(Params.Subtitle))
+    {
+        <p class="page-title__subtitle">@Params.Subtitle</p>
+    }
+</div>
+
+@code {
+    [Parameter] public PageTitleParams Params { get; set; } = new();
+}

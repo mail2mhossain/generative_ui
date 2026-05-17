@@ -1,0 +1,24 @@
+@* Declarative block — route summary banner (Origin → Destination + date) *@
+@namespace BlazorAGUIDemo.Components.Blocks
+
+<div class="search-header">
+    <div class="search-header__route">
+        <span class="search-header__place">@Params.Origin</span>
+        <span class="search-header__arrow">✈</span>
+        <span class="search-header__place">@Params.Destination</span>
+    </div>
+    <div class="search-header__meta">
+        @if (!string.IsNullOrEmpty(Params.Date))
+        {
+            <span class="search-header__date">@Params.Date</span>
+        }
+        @if (!string.IsNullOrEmpty(Params.Label))
+        {
+            <span class="search-header__label">@Params.Label</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public SearchHeaderParams Params { get; set; } = new();
+}
