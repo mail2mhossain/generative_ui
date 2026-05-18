@@ -393,6 +393,73 @@ def show_flight_options(
     return "Flight options displayed."
 
 
+# --- MCP App: Excalidraw --------------------------------------------------
+
+@tool(ToolNames.OPEN_EXCALIDRAW)
+def open_excalidraw(
+    mcp_server_url: str,
+    initial_prompt: str,
+    title: str,
+) -> str:
+    """Open the Excalidraw diagramming app in a sandboxed panel.
+
+    Use this tool when the user wants to draw, sketch, or diagram anything —
+    architecture diagrams, sequence diagrams, flowcharts, wireframes, etc.
+
+    ALWAYS call this tool with these exact values:
+      mcp_server_url — ALWAYS "https://excalidraw.com" (never change this)
+      initial_prompt — a clear natural-language instruction describing what to
+                       draw, e.g. "Draw a sequence diagram for the login flow"
+      title          — ALWAYS "Excalidraw" (never change this)
+
+    Do NOT call any data-fetch tools before this one — Excalidraw is
+    self-contained.
+    """
+    return "Excalidraw opened."
+
+
+# --- Fully open-ended UI: generated HTML ----------------------------------
+
+@tool(ToolNames.GENERATE_UI)
+def generate_ui(html_content: str, title: str) -> str:
+    """Display a custom interactive HTML interface generated entirely from scratch.
+
+    Use this tool for:
+      - Animations and visual effects (e.g. "make it rain tacos")
+      - Mini-games and interactive toys
+      - Calculators, converters, and custom input tools
+      - Data visualisations without live data
+      - Any creative or open-ended UI request that doesn't fit
+        weather / flight / dashboard patterns
+
+    IMPORTANT — the HTML runs inside a double-sandboxed iframe.
+    You MUST follow ALL rules below or the UI will be broken or blank:
+
+    html_content rules:
+      1. Start with <!DOCTYPE html><html> and end with </html>
+      2. ALL CSS must be inside <style> tags in <head> — nowhere else
+      3. ALL JavaScript must be inside <script> tags in <body> — no src= attributes
+      4. NO external URLs of any kind:
+           ✗ No CDN links  ✗ No Google Fonts  ✗ No <img src="http…">
+           ✗ No import statements referencing external modules
+      5. Use EMOJI for icons and visual elements (they render without images)
+      6. Sandbox restrictions — these APIs are NOT available:
+           ✗ localStorage / sessionStorage  ✗ document.cookie
+           ✗ fetch / XMLHttpRequest         ✗ window.parent / window.top
+      7. For animations: use requestAnimationFrame, NOT setInterval/setTimeout
+         for the render loop — this produces smooth 60fps and avoids jank
+      8. DOM cleanup: ALWAYS remove elements that leave the viewport to prevent
+         unbounded memory growth (e.g. after a taco falls off-screen, call
+         element.remove())
+      9. The viewport is exactly 100vw × 100vh inside the iframe
+     10. The document must be visually complete immediately on load —
+         no loading states, no placeholder text
+
+    title — short panel header label, e.g. "Taco Rain" or "Fibonacci Spiral"
+    """
+    return "UI displayed."
+
+
 # --- Declarative view: display tool ---------------------------------------
 
 @tool(ToolNames.SHOW_DECLARATIVE_VIEW)
@@ -469,6 +536,14 @@ assert show_declarative_view.name == ToolNames.SHOW_DECLARATIVE_VIEW, (
     f"Tool name mismatch: function='{show_declarative_view.name}' "
     f"constant='{ToolNames.SHOW_DECLARATIVE_VIEW}'"
 )
+assert open_excalidraw.name == ToolNames.OPEN_EXCALIDRAW, (
+    f"Tool name mismatch: function='{open_excalidraw.name}' "
+    f"constant='{ToolNames.OPEN_EXCALIDRAW}'"
+)
+assert generate_ui.name == ToolNames.GENERATE_UI, (
+    f"Tool name mismatch: function='{generate_ui.name}' "
+    f"constant='{ToolNames.GENERATE_UI}'"
+)
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -520,6 +595,53 @@ or anything that combines flights AND weather for the same trip:
   IMPORTANT: All values must come from the data tools — never invent prices,
   times, durations, or weather figures.
 
+== DIAGRAMMING / DRAWING REQUESTS ==
+
+When the user asks to draw, sketch, diagram, or visualise anything
+(architecture, sequence diagrams, flowcharts, wireframes, mind maps, etc.):
+  1. Call open_excalidraw with ALL THREE parameters set exactly as follows:
+       mcp_server_url → ALWAYS the literal string "https://excalidraw.com"
+       initial_prompt → a clear, specific instruction describing what to draw,
+                        e.g. "Draw a sequence diagram showing the OAuth 2.0
+                        login flow between browser, frontend, and auth server."
+       title          → ALWAYS the literal string "Excalidraw"
+  2. Do NOT call any data tools before open_excalidraw — the app is
+     self-contained.
+  After the tool call, confirm in one sentence what you asked Excalidraw to draw.
+
+== CUSTOM / CREATIVE UI REQUESTS ==
+
+When the user asks for an animation, game, calculator, visual effect, chart,
+or any interactive interface that does NOT fit weather / flight / dashboard:
+  1. Call generate_ui with:
+       title        → short label, e.g. "Taco Rain" or "Bounce Simulator"
+       html_content → a COMPLETE, self-contained HTML document. Rules:
+                      - Start with <!DOCTYPE html><html>
+                      - ALL CSS in <style> tags in <head>
+                      - ALL JS in <script> tags in <body> — no external src
+                      - NO external URLs (no CDN, no images via URL, no fonts)
+                      - Use emoji for visual elements instead of images
+                      - Use requestAnimationFrame for animation loops
+                      - Remove DOM elements when they leave the viewport
+                      - 100vw × 100vh viewport — fill it completely
+                      - Visually complete immediately on load
+
+  Be SPECIFIC and CREATIVE. A vague prompt produces a boring result.
+  Include exact visual elements, colours, physics, and interactivity.
+
+  Examples:
+    "Make it rain tacos" →
+      title="Taco Rain", html with 🌮 emoji falling at random angles,
+      randomised sizes 1em–3em, requestAnimationFrame loop, DOM cleanup
+
+    "Show a bouncing DVD logo" →
+      title="DVD Bounce", html with a colourful "DVD" text bouncing off walls,
+      colour changing on each wall hit, smooth rAF animation
+
+    "Build a BPM tap tempo tool" →
+      title="Tap Tempo", html with a large tap button, running BPM average,
+      visual pulse that flashes on each tap
+
 == GENERAL ==
 
 After calling any UI display tool, follow up with one short sentence confirming
@@ -543,6 +665,8 @@ agent = create_react_agent(
         search_flights,
         show_flight_options,
         show_declarative_view,
+        open_excalidraw,
+        generate_ui,
     ],
     prompt=_SYSTEM_PROMPT,
     checkpointer=MemorySaver(),

@@ -103,6 +103,9 @@ conda remove --prefix Z:\conda_env\generative_ui_agent_env --all
 
    declarative_gen_ui = "Give me a travel dashboard for a trip from London to New York"
 
+   Open-Ended Generative UI =    "Draw a sequence diagram for the login flow"
+                                 "make it rain tacos"
+
 
    # Interactive REPL
    python client.py

@@ -19,6 +19,12 @@ class ToolNames:
     SHOW_FLIGHT_OPTIONS   = "show_flight_options"
     SHOW_DECLARATIVE_VIEW = "show_declarative_view"
 
+    # Pillar 3A — MCP Apps
+    OPEN_EXCALIDRAW       = "open_excalidraw"
+
+    # Pillar 3B — Fully Open-Ended Generative UI
+    GENERATE_UI           = "generate_ui"
+
     # ------------------------------------------------------------------
     # Data tools — internal; invisible to Blazor
     # ------------------------------------------------------------------
@@ -32,4 +38,6 @@ class ToolNames:
             cls.SHOW_WEATHER,
             cls.SHOW_FLIGHT_OPTIONS,
             cls.SHOW_DECLARATIVE_VIEW,
+            cls.OPEN_EXCALIDRAW,
+            cls.GENERATE_UI,
         })

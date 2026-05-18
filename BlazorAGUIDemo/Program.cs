@@ -64,6 +64,13 @@ builder.Services.AddSingleton<ComponentRegistry>(sp =>
         suggestedPrompt: "Draw a sequence diagram for the login flow",
         expectedHeight:  520);
 
+    // Pillar 3B — Fully Open-Ended Generative UI
+    registry.Register<GeneratedUiFrame, GeneratedUiParams>(
+        toolName:        ToolNames.GenerateUi,
+        description:     "Generate a custom interactive HTML interface on demand.",
+        suggestedPrompt: "Make it rain tacos",
+        expectedHeight:  420);
+
     return registry;
 });
 

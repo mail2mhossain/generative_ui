@@ -14,4 +14,7 @@ public static class ToolNames
 
     // Pillar 3A — MCP Apps
     public const string OpenExcalidraw      = "open_excalidraw";
+
+    // Pillar 3B — Fully Open-Ended Generative UI
+    public const string GenerateUi          = "generate_ui";
 }

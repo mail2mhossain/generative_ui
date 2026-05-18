@@ -1,0 +1,58 @@
+@*
+    GeneratedUiFrame.razor — Pillar 3B: fully open-ended generative UI widget.
+
+    Registered in ComponentRegistry under ToolNames.GenerateUi.
+    When the agent calls generate_ui it emits TOOL_CALL_ARGS carrying
+    GeneratedUiParams (html_content, title).
+
+    Security: double-iframe sandbox via generatedUiBridge.js.
+      Outer iframe — sandbox="allow-scripts" only (null origin).
+                     Cannot read Blazor cookies, localStorage, or DOM.
+      Inner iframe — sandbox="allow-scripts" only (inherits null origin).
+                     Runs the agent-generated HTML.
+                     Two layers of isolation mean even a sandbox-escape in the
+                     inner frame only reaches the outer's null-origin context.
+
+    Lifecycle:
+      OnParametersSet    — detects new HtmlContent; sets _shouldInject flag.
+      OnAfterRenderAsync — on first render with content, lazy-loads
+                           generatedUiBridge.js and calls setContent().
+                           On subsequent content changes, calls setContent()
+                           again to replace the previous iframe.
+      DisposeAsync       — calls dispose() to clear iframes and free the
+                           JS module reference.
+*@
+
+@namespace BlazorAGUIDemo.Components.Widgets
+@using AgUiProtocol
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="generated-ui-frame">
+
+    @* ── Title bar *@
+    <div class="generated-ui-title-bar">
+        <span class="generated-ui-badge">AI&nbsp;Generated</span>
+        <span class="generated-ui-title">@Params.Title</span>
+    </div>
+
+    @* ── Content area — double iframe is injected here by generatedUiBridge.js *@
+    <div class="generated-ui-body" @ref="_container">
+        @if (string.IsNullOrEmpty(Params.HtmlContent))
+        {
+            <div class="generated-ui-empty">
+                <div class="generated-ui-empty__spinner"></div>
+                <span>Generating interface…</span>
+            </div>
+        }
+    </div>
+
+</div>
+
+@code {
+    /// <summary>
+    /// Tool parameters deserialized from TOOL_CALL_ARGS by PendingComponentModel.
+    /// HtmlContent carries the full agent-generated HTML document.
+    /// </summary>
+    [Parameter] public GeneratedUiParams Params { get; set; } = new();
+}

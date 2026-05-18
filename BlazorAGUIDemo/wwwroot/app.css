@@ -814,3 +814,94 @@ a { color: inherit; }
     font-size: 1.2rem;
     flex-shrink: 0;
 }
+
+/* =========================================================================
+   Pillar 3B — Generated UI Frame
+   ========================================================================= */
+
+.generated-ui-frame {
+    display:        flex;
+    flex-direction: column;
+    border:         1px solid var(--border);
+    border-radius:  var(--radius-md);
+    background:     var(--surface);
+    overflow:       hidden;
+    box-shadow:     var(--shadow-md);
+    min-height:     420px;
+}
+
+/* ── Title bar ── */
+.generated-ui-title-bar {
+    display:     flex;
+    align-items: center;
+    gap:         .6rem;
+    padding:     .6rem 1rem;
+    background:  linear-gradient(90deg, #7c3aed 0%, #6366f1 100%);
+    color:       #fff;
+    font-size:   .85rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.generated-ui-badge {
+    display:        inline-flex;
+    align-items:    center;
+    padding:        .15rem .45rem;
+    background:     rgba(255,255,255,.2);
+    color:          #fff;
+    border-radius:  var(--radius-sm);
+    font-size:      .7rem;
+    font-weight:    700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space:    nowrap;
+}
+
+.generated-ui-title {
+    flex:          1;
+    white-space:   nowrap;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Body — fills remaining height; hosts the outer iframe ── */
+.generated-ui-body {
+    flex:     1;
+    position: relative;
+    /* The outer iframe is injected here by generatedUiBridge.js and
+       positioned to fill the full body area. */
+}
+
+.generated-ui-body > iframe {
+    position: absolute;
+    inset:    0;
+    width:    100%;
+    height:   100%;
+    border:   none;
+}
+
+/* ── Empty / loading state (shown while agent is generating) ── */
+.generated-ui-empty {
+    position:       absolute;
+    inset:          0;
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    justify-content: center;
+    gap:            .75rem;
+    color:          var(--sidebar-text-muted);
+    font-size:      .9rem;
+}
+
+.generated-ui-empty__spinner {
+    width:         2rem;
+    height:        2rem;
+    border:        3px solid var(--border);
+    border-top-color: #7c3aed;
+    border-radius: 50%;
+    animation:     gen-spin .7s linear infinite;
+}
+
+@keyframes gen-spin {
+    to { transform: rotate(360deg); }
+}
